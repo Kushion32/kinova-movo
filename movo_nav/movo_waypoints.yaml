@@ -1,0 +1,12 @@
+waypoints:
+  storage_closet:
+    position: [6.93851375579834, 4.510504245758057, 0.0]
+    orientation: [0.0, 0.0, 0.0, 1.0]
+
+  exit:
+    position: [-2.207538604736328, 4.711748123168945, 0.0]
+    orientation: [0.0, 0.0, 0.0, 1.0]
+
+  robot_stack:
+    position: [3.1962859630584717, -1.3950717449188232, 0.0]
+    orientation: [0.0, 0.0, 0.0, 1.0]
