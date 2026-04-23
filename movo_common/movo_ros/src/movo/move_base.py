@@ -101,6 +101,16 @@ class MovoMoveBase():
         self.running_time = 0
         self.movo_operational_state = 0
         initial_mode_req = TRACTOR_REQUEST
+        
+        # Person following monitoring
+        self.person_following_enabled = rospy.get_param("~enable_person_following", True)
+        self.person_is_following = False
+        self.person_following_check_active = False
+        self.person_search_timeout = rospy.get_param("~person_search_timeout", 5.0)
+        self.person_search_angular_speed = rospy.get_param("~person_search_angular_speed", 0.35)
+        self.person_search_direction_switch_time = rospy.get_param(
+            "~person_search_direction_switch_time", 1.5
+        )
 
 
         """
@@ -113,6 +123,7 @@ class MovoMoveBase():
         rospy.Subscriber('/clicked_point',PointStamped,self._add_waypoint)
         rospy.Subscriber('/movo/teleop/record_pose',Bool,self._add_waypoint_pose)
         rospy.Subscriber('/movo/waypoint_cmd',UInt32,self._process_waypoint_cmd)
+        rospy.Subscriber('/movo/person_following_status', Bool, self._handle_person_following_status)
         self.simple_goal_pub = rospy.Publisher('/movo_move_base/goal', MoveBaseActionGoal, queue_size=10)
         self.new_goal = MoveBaseActionGoal()
 
@@ -122,6 +133,7 @@ class MovoMoveBase():
         self.config_cmd = ConfigCmd()
         self.cmd_config_cmd_pub = rospy.Publisher('/movo/gp_command', ConfigCmd, queue_size=10)
         self.cmd_vel_pub = rospy.Publisher('/movo/teleop/cmd_vel', Twist, queue_size=10)
+        self.nav_active_pub = rospy.Publisher('/movo/navigation_active', Bool, queue_size=10)
 
         if (False == self.is_sim):
             if (False == self._goto_mode_and_indicate(initial_mode_req)):
@@ -348,35 +360,120 @@ class MovoMoveBase():
         self.n_goals+=1
         self.goal_timeout = rospy.Duration(self.goal_timeout_sec)
         self.goal_start_time = rospy.get_time()
-        self.move_base_client.send_goal(goal,done_cb=self._done_moving_cb,feedback_cb=self._feedback_cb)
+
+        # Enable person following monitoring
+        if self.person_following_enabled:
+            self.person_following_check_active = True
+            self.person_is_following = False
+            nav_status = Bool()
+            nav_status.data = True
+            self.nav_active_pub.publish(nav_status)
+
         delay = rospy.Duration(0.1)
 
-        while not self.move_base_client.wait_for_result(delay) and not rospy.is_shutdown():
-            """
-            If the battery is low, we timed out, or got preempted stop moving
-            """
-            if self.movo_battery_low:
-                self.move_base_client.cancel_goal()
-                self.move_base_server.set_aborted(None, "Dangerous to navigate with low state of charge, cancelling goal")
-                rospy.loginfo("Dangerous to navigate with low state of charge, Runtime Warning... Plug me in to charge..")
-                return
+        # Outer loop allows re-sending the goal after a person-following pause
+        while not rospy.is_shutdown():
+            self.move_base_client.send_goal(goal, done_cb=self._done_moving_cb, feedback_cb=self._feedback_cb)
+            person_paused = False
 
-            if self.movo_issued_dyn_rsp:
-                self.move_base_client.cancel_goal()
-                self.move_base_server.set_aborted(None, "Platform initiated dynamic response")
-                rospy.loginfo("Cannot navigate when platform is executing dynamic response")
-                return
+            while not self.move_base_client.wait_for_result(delay) and not rospy.is_shutdown():
+                """
+                If the battery is low, we timed out, or got preempted stop moving
+                """
+                # Person stopped following — cancel the goal to actually stop the robot
+                if self.person_following_enabled and not self.person_is_following:
+                    rospy.logwarn("Person stopped following — cancelling goal to stop robot")
+                    self.move_base_client.cancel_goal()
+                    # Wait for cancel to be acknowledged (PREEMPTED state)
+                    self.move_base_client.wait_for_result(rospy.Duration(3.0))
+                    person_paused = True
+                    break
 
-            if ((rospy.get_time() - self.goal_start_time) > self.goal_timeout.to_sec()):
-                self.move_base_client.cancel_goal()
-                self.move_base_server.set_aborted(None, "Goal has timed out took longer than %f"%self.goal_timeout)
-                rospy.loginfo("Timed out while trying to acheive new goal, cancelling move_base goal.")
-                return
+                if self.movo_battery_low:
+                    self.move_base_client.cancel_goal()
+                    self.move_base_server.set_aborted(None, "Dangerous to navigate with low state of charge, cancelling goal")
+                    rospy.loginfo("Dangerous to navigate with low state of charge, Runtime Warning... Plug me in to charge..")
+                    self._disable_person_following()
+                    return
+
+                if self.movo_issued_dyn_rsp:
+                    self.move_base_client.cancel_goal()
+                    self.move_base_server.set_aborted(None, "Platform initiated dynamic response")
+                    rospy.loginfo("Cannot navigate when platform is executing dynamic response")
+                    self._disable_person_following()
+                    return
+
+                if ((rospy.get_time() - self.goal_start_time) > self.goal_timeout.to_sec()):
+                    self.move_base_client.cancel_goal()
+                    self.move_base_server.set_aborted(None, "Goal has timed out took longer than %f"%self.goal_timeout)
+                    rospy.loginfo("Timed out while trying to acheive new goal, cancelling move_base goal.")
+                    self._disable_person_following()
+                    return
+
+            if person_paused:
+                # Robot is now stopped — actively search for the person instead
+                # of waiting in place.
+                rospy.loginfo("Robot stopped. Searching up to 30 s for person to return...")
+                wait_start = rospy.get_time()
+                while not self.person_is_following and (rospy.get_time() - wait_start) < 30.0:
+                    if self._search_for_person():
+                        break
+                    rospy.sleep(0.2)
+
+                if not self.person_is_following:
+                    rospy.logwarn("Person did not return after 30 s — aborting navigation")
+                    self.move_base_server.set_aborted(None, "Person stopped following")
+                    self._disable_person_following()
+                    return
+                else:
+                    rospy.loginfo("Person detected again — resuming navigation")
+                    continue  # re-send the goal
+            else:
+                # Goal finished normally (succeeded/aborted via done_cb)
+                break
 
         """
         The goal should not be active at this point
         """
+        self._disable_person_following()
         assert not self.move_base_server.is_active()
+
+    def _disable_person_following(self):
+        """Helper to turn off person-following state after a goal ends."""
+        self.person_following_check_active = False
+        self.cmd_vel_pub.publish(Twist())
+        if self.person_following_enabled:
+            nav_status = Bool()
+            nav_status.data = False
+            self.nav_active_pub.publish(nav_status)
+
+    def _search_for_person(self):
+        rate = rospy.Rate(10)
+        start_time = rospy.Time.now()
+        next_switch_time = start_time + rospy.Duration(self.person_search_direction_switch_time)
+        direction = 1.0
+        search_cmd = Twist()
+
+        while not rospy.is_shutdown():
+            if self.person_is_following:
+                self.cmd_vel_pub.publish(Twist())
+                rospy.loginfo("Person detected again — resuming navigation")
+                return True
+
+            now = rospy.Time.now()
+            if (now - start_time).to_sec() >= self.person_search_timeout:
+                break
+
+            if now >= next_switch_time:
+                direction *= -1.0
+                next_switch_time = now + rospy.Duration(self.person_search_direction_switch_time)
+
+            search_cmd.angular.z = direction * self.person_search_angular_speed
+            self.cmd_vel_pub.publish(search_cmd)
+            rate.sleep()
+
+        self.cmd_vel_pub.publish(Twist())
+        return self.person_is_following
 
     def _feedback_cb(self,feedback):
         self.move_base_server.publish_feedback(feedback)
@@ -464,6 +561,12 @@ class MovoMoveBase():
             self.movo_issued_dyn_rsp = True
 
         self.movo_operational_state = stat.operational_state
+    
+    def _handle_person_following_status(self, msg):
+        """Handle updates from person following monitor"""
+        self.person_is_following = msg.data
+        if not self.person_is_following and self.person_following_check_active:
+            rospy.logwarn("Person stopped following - pausing navigation")
 
     def _goto_mode_and_indicate(self,requested):
         """

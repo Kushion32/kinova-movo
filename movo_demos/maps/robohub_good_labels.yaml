@@ -1,0 +1,21 @@
+labels:
+  robotstack:
+    orientation:
+    - 0.0
+    - 0.0
+    - 0.602436
+    - 0.798167
+    position:
+    - 1.8413
+    - -0.1512
+    - 0.0
+  storage:
+    orientation:
+    - 0.0
+    - 0.0
+    - 0.40881
+    - 0.912619
+    position:
+    - 3.5518
+    - 3.8136
+    - 0.0

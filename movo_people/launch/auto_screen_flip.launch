@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Automatically flip MOVO tablet/head toward a nearby person seen by depth camera -->
+
+  <arg name="depth_topic" default="/camera/depth/image_rect_raw" />
+  <arg name="command_topic" default="/movo/auto_screen_flip/command" />
+  <arg name="state_topic" default="/movo/auto_screen_flip/state" />
+  <arg name="trigger_distance_m" default="0.40" />
+  <arg name="clear_distance_m" default="0.65" />
+  <arg name="detect_hold_s" default="3.0" />
+  <arg name="flip_cooldown_s" default="2.0" />
+
+  <node pkg="movo_people"
+        type="auto_screen_flip_node.py"
+        name="auto_screen_flip_node"
+        output="screen">
+    <param name="depth_topic" value="$(arg depth_topic)" />
+    <param name="command_topic" value="$(arg command_topic)" />
+    <param name="state_topic" value="$(arg state_topic)" />
+    <param name="trigger_distance_m" value="$(arg trigger_distance_m)" />
+    <param name="clear_distance_m" value="$(arg clear_distance_m)" />
+    <param name="detect_hold_s" value="$(arg detect_hold_s)" />
+    <param name="flip_cooldown_s" value="$(arg flip_cooldown_s)" />
+  </node>
+</launch>

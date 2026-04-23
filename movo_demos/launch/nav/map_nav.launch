@@ -5,32 +5,30 @@
     <arg name="use_waypoints" default="false"/>
     <arg name="sim" default="false"/>
     <arg name="local" default="true"/>
+    <arg name="rosconsole_config" default="$(find movo_people)/config/person_following_rosconsole.config"/>
 
-    <machine name="movo1" address="movo1" user="robohub" 
+    <machine name="movo1" address="movo1" user="robohub"
                  env-loader="/home/robohub/env.sh" default="true" unless="$(arg local)"/>
 
     <!-- Run the map server -->
-    <node name="map_server" pkg="map_server" type="map_server" args="$(find movo_demos)/maps/$(arg map_file).yaml" />
+    <node name="map_server" pkg="map_server" type="map_server" args="$(find movo_demos)/maps/$(arg map_file).yaml" output="log" />
 
-    <!-- Run movo_move_base action client for tracking status -->
-    <node pkg="movo_ros" name="movo_move_base" type="movo_move_base" output="screen" clear_params="true"> 
-        <param name="using_amcl" value="true"/>
-        <param name="global_frame" value="/map"/>
-        <param name="goal_timeout_sec" value="300"/>
-        <param name="load_waypoints" value="$(arg use_waypoints)"/>
-        <param name="sim" value="$(arg sim)"/>
-    </node>
-       
+    <!-- NOTE: movo_move_base is intentionally NOT started here.
+         It is already running from the robot bringup. Starting a second
+         instance kills the bringup one mid-navigation (state 9 LOST). -->
+
     <!--- Run amcl -->
-    <node pkg="amcl" type="amcl" name="amcl" output="screen" clear_params="true">
-        <rosparam command="load" file="$(find movo_demos)/config/2d_nav/amcl.yaml"/>
-        <remap from="scan" to="/movo/base_scan_filtered" />
+        <node pkg="amcl" type="amcl" name="amcl" output="log" clear_params="true">
+            <env name="ROSCONSOLE_CONFIG_FILE" value="$(arg rosconsole_config)"/>
+            <rosparam command="load" file="$(find movo_demos)/config/2d_nav/amcl.yaml"/>
+            <remap from="scan" to="/movo/base_scan_filtered" />
     </node>
 
     <!--- Run Move Base -->
     <include file="$(find movo_demos)/launch/nav/move_base.launch">
         <arg name="no_static_map" value="false"/>
         <arg name="local" value="$(arg local)"/>
+        <arg name="rosconsole_config" value="$(arg rosconsole_config)"/>
     </include>
-    
+
 </launch>

@@ -1,0 +1,24 @@
+<!-- Launch the Map Manager backend + Waypoint Navigator together.
+     Run with:  roslaunch movo_nav nav_ui.launch
+     This starts map_manager.py (which auto-starts navigation for the last
+     active map) and goto_points.py (which publishes the nav-ready/waypoints
+     topics consumed by the React UI). -->
+<launch>
+
+  <!-- Map Manager: handles SLAM, map saving, navigation launch, labels -->
+  <node name="map_manager"
+        pkg="movo_nav"
+        type="map_manager.py"
+        output="screen"
+        required="true" />
+
+  <!-- Waypoint Navigator: connects to move_base, gates nav buttons in UI -->
+  <node name="goto_points"
+        pkg="movo_nav"
+        type="goto_points.py"
+        output="screen">
+    <param name="waypoints_file"
+           value="$(find movo_nav)/movo_waypoints.yaml" />
+  </node>
+
+</launch>

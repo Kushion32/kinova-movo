@@ -1,0 +1,21 @@
+labels:
+  frontroom:
+    orientation:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+    position:
+    - 0.7118
+    - 2.7273
+    - 0.0
+  robotstack:
+    orientation:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+    position:
+    - 0.3056
+    - -2.2758
+    - 0.0

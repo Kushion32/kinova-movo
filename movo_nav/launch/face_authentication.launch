@@ -1,0 +1,15 @@
+<launch>
+    <!-- Face Authentication Node -->
+    <arg name="camera_topic" default="/camera/color/image_raw/compressed"/>
+    <arg name="display" default="true"/>
+    <arg name="known_image_path" default="$(find movo_nav)/config/me.jpg"/>
+
+    <node pkg="movo_nav" type="face_recognition_ros.py" name="face_authentication_node" output="screen">
+        <param name="camera_topic" value="$(arg camera_topic)"/>
+        <param name="display" value="$(arg display)"/>
+        <param name="known_image_path" value="$(arg known_image_path)"/>
+        <param name="auth_status_topic" value="/face_auth/status"/>
+        <param name="auth_overlay_topic" value="/face_auth/overlay"/>
+    </node>
+
+</launch>

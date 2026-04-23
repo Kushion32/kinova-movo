@@ -1,8 +1,18 @@
+#!/usr/bin/env python3
+
 import rospy
 import cv2
+import os
+import sys
 from sensor_msgs.msg import Image
 from std_msgs.msg import Int32
 from cv_bridge import CvBridge, CvBridgeError
+
+# Ensure sibling modules are importable under rosrun/catkin wrapper execution.
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
+
 from yolo_person_detector import YoloPersonDetector
 
 class RealSensePersonCounter:
@@ -20,7 +30,8 @@ class RealSensePersonCounter:
         rospy.loginfo(f"Subscribing to Color: {color_topic}")
 
         # Load YOLO once; model path can be swapped if you want a larger model (e.g. yolov8s.pt).
-        self.detector = YoloPersonDetector(model_path="yolov8n.pt", conf=0.25)
+        model_path = os.path.join(SCRIPT_DIR, "yolov8n.pt")
+        self.detector = YoloPersonDetector(model_path=model_path, conf=0.25)
 
     def process_images(self, color_image):
         try:

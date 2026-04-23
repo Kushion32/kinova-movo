@@ -9,7 +9,7 @@ odom_frame:                odom
 # How long (in seconds) between updates to the map. 
 # Lowering this number updates the occupancy grid more often, 
 # at the expense of greater computational load
-map_update_interval:       30.0
+map_update_interval:       2.0
 
 # Parameters
 

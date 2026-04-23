@@ -1,0 +1,52 @@
+<!-- ============================================================
+     demo_nav.launch  —  hardcoded robohub_good map navigation
+     for the Selest security-bot kiosk demo.
+
+     Run with:
+       roslaunch movo_demos demo_nav.launch
+
+     This launch file:
+       1. Serves the robohub_good map (hardcoded — never swaps)
+       2. Starts AMCL localisation with correct initial pose
+       3. Starts move_base (eband) with static map
+       4. Starts goto_points.py (waypoint navigator / UI backend)
+
+     Do NOT run map_nav.launch or nav_ui.launch alongside this —
+     this replaces both for demo purposes.
+     ============================================================ -->
+
+<launch>
+
+  <!-- ── 1. Map server — robohub_good, hardcoded ── -->
+  <node name="map_server"
+        pkg="map_server"
+        type="map_server"
+        args="$(find movo_demos)/maps/robohub_good.yaml"
+        respawn="false"
+        output="screen" />
+
+  <!-- ── 2. AMCL localisation ── -->
+  <node pkg="amcl" type="amcl" name="amcl" output="screen" clear_params="true">
+    <rosparam command="load"
+              file="$(find movo_demos)/config/2d_nav/amcl.yaml" />
+    <remap from="scan" to="/movo/base_scan_filtered" />
+  </node>
+
+  <!-- ── 3. Move base (eband local planner, static map) ── -->
+  <include file="$(find movo_demos)/launch/nav/move_base.launch">
+    <arg name="no_static_map" value="false" />
+    <arg name="local"         value="true" />
+  </include>
+
+  <!-- ── 4. Waypoint navigator / UI backend ── -->
+  <!-- Hardcoded waypoints: robotstack (washroom dest) + storage (stairs dest) -->
+  <node name="goto_points"
+        pkg="movo_nav"
+        type="goto_points.py"
+        output="screen"
+        respawn="true">
+    <param name="waypoints_file"
+           value="$(find movo_nav)/movo_waypoints.yaml" />
+  </node>
+
+</launch>

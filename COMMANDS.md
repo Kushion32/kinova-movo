@@ -38,3 +38,4 @@ python3 realsense_person_counter.py
 rostopic echo /people/count
 
 
+ rostopic echo /movo/person_following_status

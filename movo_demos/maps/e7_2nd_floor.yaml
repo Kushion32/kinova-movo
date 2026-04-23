@@ -1,0 +1,9 @@
+free_thresh: 0.196
+image: /home/krish/catkin_ws/src/kinova-movo/movo_demos/maps/e7_2nd_floor.pgm
+negate: 0
+occupied_thresh: 0.65
+origin:
+- -10.0
+- -30.8
+- 0.0
+resolution: 0.05000000074505806

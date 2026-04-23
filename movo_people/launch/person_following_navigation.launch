@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Person Following Monitor for MOVO Navigation -->
+
+  <!-- Parameters -->
+  <arg name="enable_person_following" default="true" />
+  <arg name="min_follow_distance"     default="0.5" />   <!-- metres -->
+  <arg name="max_follow_distance"     default="1.5" />   <!-- metres -->
+  <arg name="person_lost_timeout"     default="3.0" />   <!-- seconds -->
+  <arg name="min_reliability"         default="0.5" />   <!-- 0–1, leg_detector confidence threshold -->
+  <arg name="sensor_stale_timeout"    default="1.0" />   <!-- seconds before a sensor detection expires -->
+    <arg name="rear_x_threshold"        default="-0.05" /> <!-- anything behind this x value counts as behind -->
+  <arg name="trusted_track_duration"  default="1.5" />   <!-- seconds of stable track before blind-spot grace applies -->
+  <arg name="blind_spot_grace_time"   default="2.0" />   <!-- extra hold time after a trusted track is briefly lost -->
+  <arg name="scan_topic"              default="/movo/base_scan_filtered" />
+    <arg name="rosconsole_config"       default="$(find movo_people)/config/person_following_rosconsole.config" />
+
+  <!-- leg_detector: detects legs in laser scan and publishes
+       /leg_tracker_measurements (people_msgs/PositionMeasurementArray) -->
+  <node pkg="leg_detector" type="leg_detector" name="leg_detector"
+        args="$(find leg_detector)/config/trained_leg_detector.yaml"
+      output="log">
+    <env name="ROSCONSOLE_CONFIG_FILE" value="$(arg rosconsole_config)" />
+    <!-- MOVO uses 'odom' not the default 'odom_combined' -->
+    <param name="fixed_frame" value="odom" />
+    <remap from="scan" to="$(arg scan_topic)" />
+  </node>
+
+  <!-- Person following monitor: subscribes to leg_detector output only
+       and publishes /movo/person_following_status -->
+  <node pkg="movo_people" type="person_following_monitor.py"
+      name="person_following_monitor" output="log">
+    <env name="ROSCONSOLE_CONFIG_FILE" value="$(arg rosconsole_config)" />
+    <param name="min_follow_distance" value="$(arg min_follow_distance)" />
+    <param name="max_follow_distance" value="$(arg max_follow_distance)" />
+    <param name="person_lost_timeout" value="$(arg person_lost_timeout)" />
+    <param name="min_reliability"     value="$(arg min_reliability)" />
+    <param name="sensor_stale_timeout" value="$(arg sensor_stale_timeout)" />
+    <param name="rear_x_threshold" value="$(arg rear_x_threshold)" />
+    <param name="trusted_track_duration" value="$(arg trusted_track_duration)" />
+    <param name="blind_spot_grace_time" value="$(arg blind_spot_grace_time)" />
+  </node>
+
+  <!-- Tell move_base to honour the person following status -->
+  <param name="/movo_move_base/enable_person_following"
+         value="$(arg enable_person_following)" />
+
+</launch>
